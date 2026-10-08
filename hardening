@@ -1,0 +1,51 @@
+<?php
+/**
+ * Plugin Name: Simple Site Hardening
+ * Description: A few safe, lightweight security tweaks for WordPress.
+ * Version:     1.0.0
+ * Author:      Adeel Ahmed
+ *
+ * Also add these to wp-config.php (they cannot be set from a plugin):
+ *   define( 'DISALLOW_FILE_EDIT', true );   // No code editing from wp-admin
+ *   define( 'FORCE_SSL_ADMIN', true );      // Admin and login only over HTTPS
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+// 1. Turn off XML-RPC (a common target for brute-force and DDoS attacks).
+add_filter( 'xmlrpc_enabled', '__return_false' );
+
+// 2. Hide the WordPress version number from the page source.
+remove_action( 'wp_head', 'wp_generator' );
+add_filter( 'the_generator', '__return_empty_string' );
+
+// 3. Stop username discovery through ?author=1 on the front end.
+add_action( 'template_redirect', function () {
+	if ( ! is_admin() && isset( $_GET['author'] ) ) {
+		wp_safe_redirect( home_url( '/' ), 301 );
+		exit;
+	}
+} );
+
+// 4. Hide the public REST users list from visitors who are not logged in.
+add_filter( 'rest_endpoints', function ( $endpoints ) {
+	if ( ! is_user_logged_in() ) {
+		unset( $endpoints['/wp/v2/users'] );
+		unset( $endpoints['/wp/v2/users/(?P<id>[\d]+)'] );
+	}
+	return $endpoints;
+} );
+
+// 5. Use one generic login error so attackers cannot tell a wrong username from a wrong password.
+add_filter( 'login_errors', function () {
+	return 'Login failed. Please check your details and try again.';
+} );
+
+// 6. Add basic security headers.
+add_action( 'send_headers', function () {
+	header( 'X-Content-Type-Options: nosniff' );
+	header( 'X-Frame-Options: SAMEORIGIN' );
+	header( 'Referrer-Policy: strict-origin-when-cross-origin' );
+} );
